@@ -1,6 +1,8 @@
 #include <bits/stdc++.h>
 #include <string>
-
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <unistd.h>
 using namespace std; // @suppress("Symbol is not resolved")
 
 struct table_entry
@@ -11,19 +13,26 @@ struct table_entry
     table_entry();
 
 };
-
+int clocklast[256];
 table_entry::table_entry()
 {
     dest="";
     nexthop="";
     cost=0;
 }
+
+int cost_array[256][256];
+table_entry hop_array[256][256];
 string self_ip;
 set<string>total;
 set<string>conn;
 set<string>disconn;
 vector<table_entry>routing_table;
-
+vector<table_entry>neighbours;
+//vector<routing_table>neighbours_tables;
+vector<table_entry>neighbours_tables(256);
+int * buff;
+short * sh;
 int sockfd;
 int bind_flag;
 int bytes_received;
@@ -32,8 +41,27 @@ char receive_buffer[1024];
 char sending_buffer[1024];
 struct sockaddr_in receiving_address;
 struct sockaddr_in sending_address;
-struct sockaddr not_sure;
+struct sockaddr_in not_sure;
 socklen_t not_sure_len;
+char router_1_address[1024];
+char router_2_address[1024];
+char message[1024];
+char *pointing;
+int n,temp_cost=0;
+string sender_ip;
+int self_id;
+int getid(string ip)
+{
+    string h;
+    stringstream ch(ip);
+    while(getline(ch,h,'.'))
+    {
+
+    }
+    cout<<h<<endl;
+    int res=stoi(h);
+    return res;
+}
 void print_table()
 {
     cout<<setw(15)<<"destination"<<setw(15)<<"next hop"<<setw(10)<<"cost"<<endl;
@@ -46,7 +74,7 @@ void print_table()
     }
 }
 
-
+int clockno=0;
 int main(int argc, char *argv[])
 {
 
@@ -64,7 +92,13 @@ int main(int argc, char *argv[])
     table_entry temp;
     conn.insert(self_ip);
 
-
+    for(int i=0;i<256;i++)
+    {
+        for(int j=0;j<256;j++)
+        {
+            cost_array[i][j]=10000;
+        }
+    }
 
 
 
@@ -72,7 +106,7 @@ int main(int argc, char *argv[])
     receiving_address.sin_port = htons(4747);
     receiving_address.sin_addr.s_addr = inet_addr(argv[2]);
 
-    sockfd=socket(AF_INET,SOCK_GRAM,0);
+    sockfd=socket(AF_INET,SOCK_DGRAM,0);
     bind_flag=bind(sockfd,(struct sockaddr*) &receiving_address,sizeof(struct sockaddr_in));
     while(infile>>src>>dest>>cst)
     {
@@ -89,6 +123,7 @@ int main(int argc, char *argv[])
             routing_table.push_back(temp);
             //conn.insert(src);
             conn.insert(dest);
+            neighbours.push_back(temp);
         }
         else if(dest==self_ip)
         {
@@ -96,6 +131,7 @@ int main(int argc, char *argv[])
             temp.nexthop=src;
             temp.cost=cst;
             routing_table.push_back(temp);
+            neighbours.push_back(temp);
             conn.insert(src);
             //conn.insert(dest);
         }
@@ -105,7 +141,7 @@ int main(int argc, char *argv[])
     temp.nexthop=self_ip;
     temp.cost=0;
     routing_table.push_back(temp);
-
+    neighbours.push_back(temp);
     set_difference(total.begin(),total.end(),conn.begin(),conn.end(), inserter(disconn,disconn.end()));
 
     std::set<string>::iterator it;
@@ -121,9 +157,173 @@ int main(int argc, char *argv[])
 
     print_table();
     //cout<<total.size()<<endl;
+    n=total.size();
+    self_id=getid(self_ip);
+    for(int i=0;i<neighbours.size();i++)
+    {
+        int te=getid(neighbours[i].dest);
+        cost_array[self_id][te]=neighbours[i].cost;
+        //cost_array[te][self_id]=neighbours[i].cost;
+
+    }
+
+
+    char header[4];
     while(true)
     {
-        bytes_received=recvfrom(sockfd,recieve_buffer,1024,0,(struct sockaddr*) &not_sure,not_sure_len);
+        bytes_received=recvfrom(sockfd,receive_buffer,1024,0,(struct sockaddr*) &not_sure,&not_sure_len);
+        string receive_from(inet_ntoa(not_sure.sin_addr));
+        cout<<receive_from<<endl;
+        strncpy(header, receive_buffer,4);
+        string action(header);
+        //printf("%s\n", header);
+        cout<<action<<endl;
+        if(action=="show")
+        {
+            print_table();
+        }
+        else if(action=="cost")
+        {
+            in_addr r1,r2;
+            buff=static_cast<int *>(static_cast<void *>(receive_buffer+4));
+            r1.s_addr=*buff;
+            pointing=inet_ntoa(r1);
+            strcpy(router_1_address,pointing);
+            //printf("%s\n", router_1_address);
+            buff=static_cast<int *>(static_cast<void *>(receive_buffer+8));
+            r2.s_addr=*buff;
+            pointing=inet_ntoa(r2);
+            printf("%d\n", temp_cost);
+            strcpy(router_2_address,pointing);
+            printf("%s\n", router_2_address);
+            printf("%s\n", router_1_address);
+            buff=static_cast<int *>(static_cast<void *>(receive_buffer+12));
+            printf("%d\n", *buff);
+            temp_cost=*buff;
+            printf("%d\n", temp_cost);
+
+
+        }
+        else if(action=="frwd")
+        {
+            in_addr r1,r2;
+            buff=static_cast<int *>(static_cast<void *>(receive_buffer+4));
+            r1.s_addr=*buff;
+            pointing=inet_ntoa(r1);
+            strcpy(router_1_address,pointing);
+            //printf("%s\n", router_1_address);
+            printf("%s\n", router_1_address);
+            sh=static_cast<short *>(static_cast<void *>(receive_buffer+12));
+            //printf("%d\n", *buff);
+            temp_cost=*sh;
+            printf("%dH\n", temp_cost);
+            buff=static_cast<int *>(static_cast<void *>(receive_buffer+14));
+            pointing=(char *)buff;
+            strcpy(message,pointing);
+            printf("%s\n", message); 
+
+        }
+        else if(action=="send")
+        {
+            in_addr r1,r2;
+            buff=static_cast<int *>(static_cast<void *>(receive_buffer+4));
+            r1.s_addr=*buff;
+            pointing=inet_ntoa(r1);
+            strcpy(router_1_address,pointing);
+            //printf("%s\n", router_1_address);
+            buff=static_cast<int *>(static_cast<void *>(receive_buffer+8));
+            r2.s_addr=*buff;
+            pointing=inet_ntoa(r2);
+            printf("%d\n", temp_cost);
+            strcpy(router_2_address,pointing);
+            printf("%s\n", router_2_address);
+            printf("%s\n", router_1_address);
+            sh=static_cast<short *>(static_cast<void *>(receive_buffer+12));
+            //printf("%d\n", *buff);
+            temp_cost=*sh;
+            printf("%dH\n", temp_cost);
+            buff=static_cast<int *>(static_cast<void *>(receive_buffer+14));
+            pointing=(char *)buff;
+            strcpy(message,pointing);
+            printf("%s\n", message); 
+            /* -----------------------
+            */
+
+        }
+        else if(action=="rout")
+        {
+            sender_ip=receive_from;
+            int x=getid(sender_ip);
+            clocklast[x]=clockno;
+            for(int i=0;i<n;i++)
+            {
+                in_addr r1,r2;
+                buff=static_cast<int *>(static_cast<void *>(receive_buffer+4+8*i));
+                r1.s_addr=*buff;
+                pointing=inet_ntoa(r1);
+                strcpy(router_1_address,pointing);
+                buff=static_cast<int *>(static_cast<void *>(receive_buffer+8+8*i));
+                //printf("%d\n", *buff);
+                temp_cost=*buff;
+                printf("%d\n", temp_cost);
+                int y=getid(string(router_1_address));
+                cost_array[x][y]=temp_cost;
+
+            }
+
+        }
+        else if(action=="clk ")
+        {
+
+            for(int i=1;i<=n;i++)
+            {
+                for(int j=1;j<=n;j++)
+                {
+                    printf("%d ", cost_array[i][j]);
+                }
+                printf("\n");
+            }
+
+            //buff=static_cast<int *>(static_cast<void *>(receive_buffer+4));
+                //printf("%d\n", *buff);
+            clockno++;
+            printf("%d\n", clockno);
+            printf("Khelbo\n");
+            for(int i=0;i<neighbours.size();i++)
+            {
+                int idx=getid(neighbours[i].dest);
+                printf("%d\n", clocklast[idx]);
+                if(clocklast[idx]-clockno > 3)
+                {
+                    printf("clockless for 3\n");
+                    neighbours[i].cost=10000;
+                }
+
+            }
+
+            for(int i=1;i<=n;i++)
+            {
+                cost_array[self_id][i]=10000;
+                for(int j=0;j<neighbours.size();j++)
+                {
+                    int v=getid(neighbours[j].dest);
+                    cout<<neighbours[j].dest<<" "<<neighbours[j].cost<<" "<<v<<endl;
+                    cost_array[self_id][i]=min(neighbours[j].cost+cost_array[v][i],cost_array[self_id][i]);
+                }
+            }
+
+            for(int i=1;i<=n;i++)
+            {
+                for(int j=1;j<=n;j++)
+                {
+                    printf("%d ", cost_array[i][j]);
+                }
+                printf("\n");
+            }
+
+            /*------------------------------------------------ YET WORK BAKI FOR SENDING TABLE*/
+        }
+        
     }
     //total.size();
     return 0;

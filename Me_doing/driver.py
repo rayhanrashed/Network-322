@@ -12,7 +12,7 @@ class Driver(object):
 			constructor
 		"""
 		self.topo = topo
-		self.host = '192.168.0.100' # driver ip address
+		self.host = '192.168.0.200' # driver ip address
 		self.port = 4747 # port number must match the one in router.py
 		self.hosts = self.populate_hosts() # populate hosts
 		self.clk = 1 # number of sync clocks
@@ -69,9 +69,12 @@ class Driver(object):
 		else:
 			h1 = map(int, segments[1].split('.'))
 			h2 = map(int, segments[2].split('.'))
+			print(h1[0])
+			print(h2[0])
 			for host in [segments[1], segments[2]]: # iterate over hosts
 				print('sending cost update to {0}'.format(host)) # print a message before sending to each host
 				buf = struct.pack('4s4B4Bh', segments[0], h1[0], h1[1], h1[2], h1[3], h2[0], h2[1], h2[2], h2[3], int(segments[3]))
+				#print(buf)
 				self.s.sendto(buf, (host, self.port)) # send to each host
 
 	def send(self, command):
