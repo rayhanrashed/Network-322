@@ -423,12 +423,20 @@ int main(int argc, char *argv[])
             for(int i=0;i<routing_table.size();i++)
             {
 
+                if(routing_table[i].dest==self_ip)
+                {
+                    continue;
+                }
                 int maxv=10000;
                 int x=self_id;
                 string nh="";
                 int y=getid(routing_table[i].dest);
                 for(int j=0;j<neighbours.size();j++)
                 {
+                    if(neighbours[j].dest==self_ip)
+                    {
+                        continue;
+                    }
                     int v=getid(neighbours[j].dest);
                     if((neighbours[j].cost + cost_array[v][y]) < maxv)
                     {
