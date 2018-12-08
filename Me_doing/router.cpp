@@ -46,7 +46,6 @@ struct sockaddr_in temporary_socket;
 socklen_t not_sure_len;
 char router_1_address[1024];
 char router_2_address[1024];
-char message[1024];
 char *pointing;
 int n,temp_cost=0;
 string sender_ip;
@@ -59,13 +58,13 @@ int getid(string ip)
     {
 
     }
-    cout<<h<<endl;
+    //cout<<h<<endl;
     int res=stoi(h);
     return res;
 }
 void print_table()
 {
-    cout<<setw(15)<<"destination"<<setw(15)<<"next hop"<<setw(10)<<"cost"<<endl;
+    cout<<setw(15)<<"destination"<<setw(15)<<"next hop"<<setw(10)<<"cst"<<endl;
     cout<<setw(15)<<"-----------"<<setw(15)<<"--------"<<setw(10)<<"-----"<<endl;
     //routing_table[0].dest="";routing_table[0].nexthop=" ";routing_table[0].cost=1;
     for(int i=0; i<routing_table.size(); i++)
@@ -199,9 +198,9 @@ int main(int argc, char *argv[])
             strcpy(router_2_address,pointing);
             printf("%s\n", router_2_address);
             printf("%s\n", router_1_address);
-            buff=static_cast<int *>(static_cast<void *>(receive_buffer+12));
-            printf("%d\n", *buff);
-            temp_cost=*buff;
+            sh=static_cast<short *>(static_cast<void *>(receive_buffer+12));
+            //printf("%d\n", *buff);
+            temp_cost=*sh;
             printf("%d\n", temp_cost);
             string go;
             if(string(router_1_address)==self_ip)
@@ -228,6 +227,7 @@ int main(int argc, char *argv[])
         }
         else if(action=="frwd")         ///SEMI TESTED
         {
+            char message[1024];
             in_addr r1,r2;
             buff=static_cast<int *>(static_cast<void *>(receive_buffer+4));
             r1.s_addr=*buff;
@@ -259,12 +259,16 @@ int main(int argc, char *argv[])
                         char msgchar[1024];
                         memcpy(msgchar,"frwd",4);
                         char ipad[1024];
-                        strcpy(ipad,routing_table[i].nexthop.c_str());
+                        strcpy(ipad,routing_table[i].dest.c_str());
                         printf("%s\n", ipad);
                         temporary_socket.sin_addr.s_addr=inet_addr(ipad);
                         memcpy(msgchar+4,&temporary_socket.sin_addr.s_addr,4);
                         memcpy(msgchar+8,sh,2);
                         memcpy(msgchar+10,message,temp_cost);
+
+                        strcpy(ipad,routing_table[i].nexthop.c_str());
+                        //printf("%s\n", ipad);
+                        temporary_socket.sin_addr.s_addr=inet_addr(ipad);
                         temporary_socket.sin_port=htons(4747);
                         temporary_socket.sin_family=AF_INET;
                         sendto(sockfd,msgchar,1024,0,(struct sockaddr*) &temporary_socket,sizeof(sockaddr_in));
@@ -278,6 +282,7 @@ int main(int argc, char *argv[])
         }
         else if(action=="send") //TESTED
         {
+            char message[1024];
             in_addr r1,r2;
             buff=static_cast<int *>(static_cast<void *>(receive_buffer+4));
             r1.s_addr=*buff;
@@ -311,12 +316,15 @@ int main(int argc, char *argv[])
                         char msgchar[1024];
                         memcpy(msgchar,"frwd",4);
                         char ipad[1024];
-                        strcpy(ipad,routing_table[i].nexthop.c_str());
-                        printf("ipad %s\n", ipad);
+                        strcpy(ipad,routing_table[i].dest.c_str());
+                        //printf("ipad %s\n", ipad);
                         temporary_socket.sin_addr.s_addr=inet_addr(ipad);
                         memcpy(msgchar+4,&temporary_socket.sin_addr.s_addr,4);
                         memcpy(msgchar+8,sh,2);
                         memcpy(msgchar+10,message,temp_cost);
+
+                        strcpy(ipad,routing_table[i].nexthop.c_str());
+                        temporary_socket.sin_addr.s_addr=inet_addr(ipad);
                         temporary_socket.sin_port=htons(4747);
                         temporary_socket.sin_family=AF_INET;
                         sendto(sockfd,msgchar,1024,0,(struct sockaddr*) &temporary_socket,sizeof(sockaddr_in));
@@ -344,12 +352,12 @@ int main(int argc, char *argv[])
                 buff=static_cast<int *>(static_cast<void *>(receive_buffer+8+8*i));
                 //printf("%d\n", *buff);
                 temp_cost=*buff;
-                printf("%d\n", temp_cost);
+                //printf("%d\n", temp_cost);
                 int y=getid(string(router_1_address));
                 cost_array[x][y]=temp_cost;
             }
             printf("JUST RECEIVED PACKET FROM %d. ME %d\n", x,self_id);
-            for(int i=1;i<=n;i++)
+/*            for(int i=1;i<=n;i++)
             {
                 for(int j=1;j<=n;j++)
                 {
@@ -357,7 +365,7 @@ int main(int argc, char *argv[])
                 }
                 printf("\n");
             }
-
+*/
 
         }
         else if(action=="clk ")
@@ -377,18 +385,23 @@ int main(int argc, char *argv[])
             clockno++;
             printf("%d\n", clockno);
             printf("Khelbo\n");
-/*            for(int i=0;i<neighbours.size();i++)
+            for(int i=0;i<neighbours.size();i++)
             {
+                if(neighbours[i].dest==self_ip)
+                {
+                    continue;
+                }
                 int idx=getid(neighbours[i].dest);
                 printf("%d\n", clocklast[idx]);
-                if(clocklast[idx]-clockno > 3)
+                int period=clocklast[idx];
+                if(clockno - clocklast[idx] > 3)
                 {
                     printf("clockless for 3\n");
                     neighbours[i].cost=10000;
                 }
 
             }
-*/
+
             /*
             for(int i=1;i<=n;i++)
             {
@@ -406,6 +419,7 @@ int main(int argc, char *argv[])
             {
                 cout<<"neigh "<<neighbours[i].dest<<neighbours[i].cost<<endl;
             }
+            
             for(int i=0;i<routing_table.size();i++)
             {
 
@@ -418,7 +432,7 @@ int main(int argc, char *argv[])
                     int v=getid(neighbours[j].dest);
                     if((neighbours[j].cost + cost_array[v][y]) < maxv)
                     {
-                        cout<<"j "<<j<<v<<i<<endl;
+                        //cout<<"j "<<j<<v<<i<<endl;
                         maxv=neighbours[j].cost+cost_array[v][y];
                         nh=neighbours[j].dest;
                         routing_table[i].nexthop=nh;
@@ -442,11 +456,38 @@ int main(int argc, char *argv[])
 
             /*------------------------------------------------ YET WORK BAKI FOR SENDING TABLE*/
 
-            char msgchar[2048];
-            for(int i=0;i<routing_table.size();i++)
+            for(int t=0;t<neighbours.size();t++)
             {
-                
+                if(neighbours[t].dest==self_ip)
+                {
+                    continue;
+                }
+                char msgchar[2048];
+                char ipad[1024];
+                memcpy(msgchar,"rout",4);
+                for(int i=0;i<routing_table.size();i++)
+                {
+                        strcpy(ipad,routing_table[i].dest.c_str());
+                        int ca=routing_table[i].cost;
+                        if(routing_table[i].nexthop==neighbours[t].dest)
+                        {
+                            ca=10000;
+                        }
+                        //printf("ipad %s\n", ipad);
+                        temporary_socket.sin_addr.s_addr=inet_addr(ipad);
+                        memcpy(msgchar+4+8*i,&temporary_socket.sin_addr.s_addr,4);
+                        memcpy(msgchar+8+8*i,&ca,4);
+
+                }
+                strcpy(ipad,neighbours[t].dest.c_str());
+                temporary_socket.sin_addr.s_addr=inet_addr(ipad);
+                temporary_socket.sin_port=htons(4747);
+                temporary_socket.sin_family=AF_INET;
+                sendto(sockfd,msgchar,2048,0,(struct sockaddr*) &temporary_socket,sizeof(sockaddr_in));
+                cout<<"sending table to "<<neighbours[t].dest<<" from "<<self_ip<<endl;
+
             }
+
 
 
 
